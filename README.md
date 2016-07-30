@@ -1,7 +1,7 @@
 # The DAO
 
 
-## What is it? Currently at $100,000,000!!!
+## What is it?
 A Standard DAO (Decentralized Autonomous Organization) framework written in Solidity to run on the Ethereum blockchain and instantiated at address 0xbb9bc244d798123fde783fcc1c72d3bb8c189413 immutably for all time.
 
 Feel free to reuse to create your own Decentralized Autonomous Organization using this framework.
