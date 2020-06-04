@@ -596,6 +596,7 @@ contract DAO is DAOInterface, Token, TokenCreation {
         p.open = false;
     }
 
+    //  todo TheDao出问题的代码 入口
     function splitDAO(
         uint _proposalID,
         address _newCurator
