@@ -24,128 +24,274 @@ to automate organizational governance and decision-making.
 import "./TokenCreation.sol";
 import "./ManagedAccount.sol";
 
+
+// Dao接口
+//
+// 任何人都可以将Ether发送到一个指定的钱包地址，以换取1-100的DAO Token.
+// 任何有DAO Token的人都可以对投资计划进行投票。如果项目盈利，就会得到回报.
 contract DAOInterface {
 
     // The amount of days for which people who try to participate in the
     // creation by calling the fallback function will still get their ether back
+    //
+    // 尝试通过调用fallback函数返回他们的以太币 的天数 (锁定天数)
     uint constant creationGracePeriod = 40 days;
+
+
     // The minimum debate period that a generic proposal can have
+    //
+    // 通用提案可以拥有的最小辩论期 (犹豫期)
     uint constant minProposalDebatePeriod = 2 weeks;
+
+
     // The minimum debate period that a split proposal can have
+    //
+    // 拆分提案可以拥有的最小辩论期 (犹豫期)
     uint constant minSplitDebatePeriod = 1 weeks;
+
+
     // Period of days inside which it's possible to execute a DAO split
+    //
+    // 在几天之内可以执行DAO拆分 (每次拆分的间隔)
     uint constant splitExecutionPeriod = 27 days;
+
+
     // Period of time after which the minimum Quorum is halved
+    //
+    // 最小仲裁人数减半后的时间段 (间隔)
     uint constant quorumHalvingPeriod = 25 weeks;
+
+
     // Period after which a proposal is closed
     // (used in the case `executeProposal` fails because it throws)
+    //
+    // 提案关闭的期限
+    // (在`executeProposal`因为抛出而失败的情况下使用)
     uint constant executeProposalPeriod = 10 days;
+
+
     // Denotes the maximum proposal deposit that can be given. It is given as
     // a fraction of total Ether spent plus balance of the DAO
+    //
+    // 表示可以提供的最大提案保证金。 它以 Ether 总支出的一部分 加上 DAO余额的形式给出
     uint constant maxDepositDivisor = 100;
 
+
+
     // Proposals to spend the DAO's ether or to choose a new Curator
+    //
+    // 花费DAO的 Ether 或 选择 负责人的 提案
     Proposal[] public proposals;
+
+
     // The quorum needed for each proposal is partially calculated by
     // totalSupply / minQuorumDivisor
+    //
+    // 每个提案所需的法定人数部分由totalSupply / minQuorumDivisor 计算
     uint public minQuorumDivisor;
+
+
     // The unix time of the last time quorum was reached on a proposal
+    //
+    // 提案已达到上次定额的Unix时间
     uint  public lastTimeMinQuorumMet;
 
     // Address of the curator
+    //
+    // 负责人地址
     address public curator;
+
+
     // The whitelist: List of addresses the DAO is allowed to send ether to
+    //
+    // 白名单：允许DAO向其发送 Ether 的地址列表
     mapping (address => bool) public allowedRecipients;
 
     // Tracks the addresses that own Reward Tokens. Those addresses can only be
     // DAOs that have split from the original DAO. Conceptually, Reward Tokens
     // represent the proportion of the rewards that the DAO has the right to
     // receive. These Reward Tokens are generated when the DAO spends ether.
+    //
+    // 跟踪拥有奖励 token 的地址。 这些地址只能是与原始DAO分开的DAO。
+    // 从概念上讲，奖励 token 代表DAO有权获得的奖励比例。 这些奖励 token 是在DAO花费 Ether 时生成的。
     mapping (address => uint) public rewardToken;
+
+
     // Total supply of rewardToken
+    //
+    // rewardToken的总供应量
     uint public totalRewardToken;
 
     // The account used to manage the rewards which are to be distributed to the
     // DAO Token Holders of this DAO
+    //
+    // 用于管理将分配给 该DAO的 `DAO Token` 持有人的奖励的帐户
+    //
+    // todo 账户管理 合约 实例
     ManagedAccount public rewardAccount;
 
     // The account used to manage the rewards which are to be distributed to
     // any DAO that holds Reward Tokens
+    //
+    // 用于管理奖励的帐户，该奖励将分发给持有奖励 token 的任何DAO
+    //
+    // todo 账户管理 合约 实例
     ManagedAccount public DAOrewardAccount;
 
     // Amount of rewards (in wei) already paid out to a certain DAO
+    //
+    // 已经支付给某个DAO的奖励金额（以wei为单位）
     mapping (address => uint) public DAOpaidOut;
 
     // Amount of rewards (in wei) already paid out to a certain address
+    //
+    // 已经支付到某个地址的奖励金额（以wei为单位）
     mapping (address => uint) public paidOut;
+
     // Map of addresses blocked during a vote (not allowed to transfer DAO
     // tokens). The address points to the proposal ID.
+    //
+    // 投票期间阻止的地址 Map（不允许转让DAO令牌）。 地址指向提案ID
+    //
+    // (address => proposalId)
     mapping (address => uint) public blocked;
 
     // The minimum deposit (in wei) required to submit any proposal that is not
     // requesting a new Curator (no deposit is required for splits)
+    //
+    // 提交任何不要求负责人的提案所需的最低保证金（以wei为单位）（拆分无需支付保证金）
     uint public proposalDeposit;
 
     // the accumulated sum of all current proposal deposits
+    //
+    // 所有当前 提案 质押的累计金额
     uint sumOfProposalDeposits;
 
     // Contract that is able to create a new DAO (with the same code as
     // this one), used for splits
+    //
+    // 能够创建一个新的DAO（使用与此相同的代码）的Dao工厂合约，用于拆分
     DAO_Creator public daoCreator;
 
     // A proposal with `newCurator == false` represents a transaction
     // to be issued by this DAO
     // A proposal with `newCurator == true` represents a DAO split
+    //
+    // 带有 `newCurator == false` 的提案表示将由该DAO发行的交易
+    // 带有 `newCurator == true` 的提案表示DAO拆分
     struct Proposal {
+
         // The address where the `amount` will go to if the proposal is accepted
         // or if `newCurator` is true, the proposed Curator of
         // the new DAO).
+        //
+        // 如果提案被接受，或者如果 `newCurator` 为 true , 则 可以接收 amount 的 address。即 一个新Dao的提案负责人
         address recipient;
+
         // The amount to transfer to `recipient` if the proposal is accepted.
+        //
+        // 如果提案被接受，则转给 `recipient` 的金额  todo (wei ?)
         uint amount;
+
         // A plain text description of the proposal
+        //
+        // 提案的纯文本描述
         string description;
+
         // A unix timestamp, denoting the end of the voting period
+        //
+        // Unix时间戳，表示投票期的结束
         uint votingDeadline;
+
         // True if the proposal's votes have yet to be counted, otherwise False
+        //
+        // 如果尚未计算提案的票数，则为True，否则为False
         bool open;
+
+
         // True if quorum has been reached, the votes have been counted, and
         // the majority said yes
+        //
+        // 如果达到法定人数，已经计算票数，并且大多数人说 yes，则为真 todo 表示 提案 投票通过
         bool proposalPassed;
+
+
         // A hash to check validity of a proposal
+        //
+        // 检查提案有效性的 Hash值
         bytes32 proposalHash;
+
         // Deposit in wei the creator added when submitting their proposal. It
         // is taken from the msg.value of a newProposal call.
+        //
+        // 创建者 在提交提案时添加的押金。 它来自newProposal调用的msg.value
         uint proposalDeposit;
+
         // True if this proposal is to assign a new Curator
+        //
+        // 如果该提案分配新的 负责人，则为true
         bool newCurator;
+
         // Data needed for splitting the DAO
+        //
+        // 拆分DAO所需的数据
         SplitData[] splitData;
+
         // Number of Tokens in favor of the proposal
+        //
+        // 支持该提案的代币数量
         uint yea;
+
         // Number of Tokens opposed to the proposal
+        //
+        // 反对提案的代币数量
         uint nay;
+
         // Simple mapping to check if a shareholder has voted for it
+        //
+        // 简单 mapping 以检查 股东 是否投票赞成
         mapping (address => bool) votedYes;
+
         // Simple mapping to check if a shareholder has voted against it
+        //
+        // 简单 mapping 以检查 股东 是否投票反对
         mapping (address => bool) votedNo;
+
         // Address of the shareholder who created the proposal
+        //
+        // 创建提案的股东的地址
         address creator;
     }
 
     // Used only in the case of a newCurator proposal.
+    //
+    // 仅在 新负责人提案 的情况下使用。
     struct SplitData {
+
         // The balance of the current DAO minus the deposit at the time of split
+        //
+        // 当前DAO的余额 减去 拆分时的存款
         uint splitBalance;
+
         // The total amount of DAO Tokens in existence at the time of split.
+        //
+        // 拆分 时存在的 DAO Token 总数
         uint totalSupply;
+
         // Amount of Reward Tokens owned by the DAO at the time of split.
+        //
+        // 拆分 时DAO拥有的 奖励 Token 数量  todo (可能不是 Dao Token ??)
         uint rewardToken;
+
         // The new DAO contract created at the time of split.
+        //
+        // 拆分时创建的新DAO 合约实例
         DAO newDAO;
     }
 
     // Used to restrict access to certain functions to only DAO Token Holders
+    //
+    // 用于将访问权限限制为 仅 DAO Token 持有者 todo 需要被重写
     modifier onlyTokenholders {}
 
     /// @dev Constructor setting the Curator and the address
@@ -342,6 +488,12 @@ contract DAOInterface {
     event AllowedRecipientChanged(address indexed _recipient, bool _allowed);
 }
 
+//
+// TODO  Dao 的玩法：
+//
+// todo DAO项目就可以开始利用融到的钱真正开始运作 (开始资金).
+// todo 人们开始像DAO系统管理者提出如何使用这笔钱的方案，并且购买DAO的成员就有资格对这些提案进行投票.
+//
 // The DAO contract itself
 contract DAO is DAOInterface, Token, TokenCreation {
 
@@ -637,10 +789,14 @@ contract DAO is DAOInterface, Token, TokenCreation {
             p.proposalPassed = true;
         }
 
+        //todo 攻击的 切入点
         // Move ether and assign new Tokens
+        //
+        // 源代码在TokenCreation.sol中，它会将代币从the parent DAO转移到the child DAO中
         uint fundsToBeMoved =
             (balances[msg.sender] * p.splitData[0].splitBalance) /
-            p.splitData[0].totalSupply;
+            p.splitData[0].totalSupply;  // 决定了要转移的代币数量  todo 并且p.splitData[0].totalSupply与balances[msg.sender]的值由于函数顺序问题没有被更新
+
         if (p.splitData[0].newDAO.createTokenProxy.value(fundsToBeMoved)(msg.sender) == false)
             throw;
 
@@ -663,7 +819,10 @@ contract DAO is DAOInterface, Token, TokenCreation {
             throw;
         DAOpaidOut[address(this)] -= paidOutToBeMoved;
 
+        // todo 攻击的切入点
         // Burn DAO Tokens
+        //
+        // 燃烧 Dao Token 换回 Ether
         Transfer(msg.sender, 0, balances[msg.sender]);
         withdrawRewardFor(msg.sender); // be nice, and get his rewards
         totalSupply -= balances[msg.sender];
@@ -713,15 +872,19 @@ contract DAO is DAOInterface, Token, TokenCreation {
         return withdrawRewardFor(msg.sender);
     }
 
-
+    // todo 攻击的 切入点
     function withdrawRewardFor(address _account) noEther internal returns (bool _success) {
         if ((balanceOf(_account) * rewardAccount.accumulatedInput()) / totalSupply < paidOut[_account])
             throw;
 
         uint reward =
             (balanceOf(_account) * rewardAccount.accumulatedInput()) / totalSupply - paidOut[_account];
+
+        // todo 转款
         if (!rewardAccount.payOut(_account, reward))
             throw;
+
+        // 这句 token 状态变更 不应该放在 `rewardAccount.payOut()` 之后的
         paidOut[_account] += reward;
         return true;
     }
