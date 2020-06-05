@@ -315,8 +315,38 @@ contract DAOInterface {
         //  address _privateCreation
     //  );
 
+
+    /*
+    @dev构造函数设置Curator和地址
+    能够创建另一个DAO的合同以及参数
+    用于DAO令牌创建
+    @param _curator 负责人
+    @param _daoCreator能够（重新）创建此DAO的合约
+    @param _proposalDeposit定期投标要支付的保证金
+    @param _minTokensToCreate成功创建DAO令牌需要创建的最小必需等效令牌
+    @param _closingTime DAO令牌创建结束的日期（Unix时间）
+    @param _privateCreation如果为零，则DAO令牌创建对公众开放，非零地址表示DAO令牌创建仅用于该地址
+    这是构造函数：不能重载，因此已注释掉
+
+    function DAO(
+          address _curator,
+          DAO_Creator _daoCreator,
+          uint _proposalDeposit,
+          uint _minTokensToCreate,
+          uint _closingTime,
+          address _privateCreation
+    );
+
+    */
+
+
+
+
     /// @notice Create Token with `msg.sender` as the beneficiary
     /// @return Whether the token creation was successful
+    //
+    // @notice以`msg.sender`作为受益人创建令牌
+    // @return令牌创建是否成功
     function () returns (bool success);
 
 
@@ -324,6 +354,9 @@ contract DAOInterface {
     /// to the DAO, it can also be used to receive payments that should not be
     /// counted as rewards (donations, grants, etc.)
     /// @return Whether the DAO received the ether successfully
+    //
+    // @dev 此功能用于将以太币发送回DAO，也可以用于接收不应计为奖励的款项（捐赠，赠款等）
+    // @return DAO是否成功接收到以太币
     function receiveEther() returns(bool);
 
     /// @notice `msg.sender` creates a proposal to send `_amount` Wei to
@@ -339,6 +372,19 @@ contract DAOInterface {
     /// @param _newCurator Bool defining whether this proposal is about
     /// a new Curator or not
     /// @return The proposal ID. Needed for voting on the proposal
+    //
+    //
+    // @notice  `msg.sender`创建一个提议，将带有交易数据`_transactionData`的_amount` Wei发送到`_recipient`.
+    // 如果`_newCurator`为true，则这是一个拆分DAO并将“ _recipient`”设置为新DAO的Curator的提议.
+    //
+    // @param _recipient 提案交易的接收者的地址
+    // @param _amount 与 提案交易 一起发送的wei的金额
+    // @param _description 描述提案的字符串
+    // @param _transactionData 提案交易的数据
+    // @param _debatingPeriod 用于辩论提案的时间，对于常规提案，至少需要2周，对于新的负责人提案 (分裂出新的Dao)，至少需要10天
+    // @param _newCurator 布尔定义此提案是否与新馆长有关
+    //
+    // @return 提案Id. 需要对该提案进行投票
     function newProposal(
         address _recipient,
         uint _amount,
@@ -356,6 +402,15 @@ contract DAOInterface {
     /// @param _amount The amount of wei to be sent in the proposed transaction
     /// @param _transactionData The data of the proposed transaction
     /// @return Whether the proposal ID matches the transaction data or not
+    //
+    // @notice 检查ID为 `_proposalID` 的提案是否与向 数据中 发送 `_transactionData` 的 `_amount` 到 `_recipient`的 tx匹配。
+    //
+    // @param _proposalID  提案ID
+    // @param _recipient 提案交易的 接收人
+    // @param _amount 提案交易中将发送的wei数量
+    // @param _transactionData 提案交易的数据
+    //
+    // @return 提案ID 是否与 交易数据匹配
     function checkProposalCode(
         uint _proposalID,
         address _recipient,
@@ -367,6 +422,13 @@ contract DAOInterface {
     /// @param _proposalID The proposal ID
     /// @param _supportsProposal Yes/No - support of the proposal
     /// @return The vote ID.
+    //
+    // @notice 对带有`_supportsProposal`的 提案 `_proposalID`进行投票
+    //
+    // @param _proposalID  提案ID
+    // @param _supportsProposal  是/否 - 支持提案
+    //
+    // @return 投票ID
     function vote(
         uint _proposalID,
         bool _supportsProposal
@@ -378,6 +440,13 @@ contract DAOInterface {
     /// @param _proposalID The proposal ID
     /// @param _transactionData The data of the proposed transaction
     /// @return Whether the proposed transaction has been executed or not
+    //
+    // @notice 检查具有交易数据`_transactionData`的提案 `_proposalID` 是否已被投票或拒绝，并在已被投票的情况下执行交易
+    //
+    // @param _proposalID 提案ID
+    // @param _transactionData 提案交易的数据
+    //
+    // @return 提议的交易是否已经执行
     function executeProposal(
         uint _proposalID,
         bytes _transactionData
@@ -394,6 +463,19 @@ contract DAOInterface {
     /// will create a new DAO and send the sender's portion of the remaining
     /// ether and Reward Tokens to the new DAO. It will also burn the DAO Tokens
     /// of the sender.
+    //
+    // todo 主要函数
+    //
+    /// @notice 注意！ 我确认将剩余的以太币 ether 移动到新的DAO中，
+    ///         以_proposalID提案中的 提议 将新的_newCurator作为新的Curator。
+    ///         这将烧毁我的 token。
+    ///         无法撤消，它将DAO分为两个DAO，以及两个不同的基础token。
+    ///
+    /// @param _proposalID 提案ID
+    /// @param _newCurator  新DAO的新负责人
+    ///
+    /// @dev 此函数在首次针对此 提议被调用时，将创建一个新的DAO，
+    ///      并将剩余 ether 和 奖励token 的 sender部分发送给新的DAO。 它还将 burn sender 的DAO令牌。
     function splitDAO(
         uint _proposalID,
         address _newCurator
@@ -403,6 +485,12 @@ contract DAOInterface {
     /// updates the contract of the DAO by sending all ether and rewardTokens
     /// to the new DAO. The new DAO needs to be approved by the Curator
     /// @param _newContract the address of the new contract
+    //
+    //
+    /// @dev 只能由DAO本身通过提案来调用，该提案通过将所有 ether 和rewardToken发送给新DAO来更新DAO的合同。
+    ///      新的DAO需要得到 负责人的批准.
+    ///
+    /// @param _newContract  新合约的地址
     function newContract(address _newContract);
 
 
@@ -411,6 +499,15 @@ contract DAOInterface {
     /// @param _recipient New recipient address
     /// @dev Can only be called by the current Curator
     /// @return Whether successful or not
+    //
+    //
+    /// @notice 在白名单中添加一个新的可能的接收者_recipient，以便DAO可以向他们发送交易（使用投标）
+    ///
+    /// @param _recipient 新 接收人地址
+    ///
+    /// @dev 只能由当前的Curator调用
+    ///
+    /// @return 是否成功
     function changeAllowedRecipients(address _recipient, bool _allowed) external returns (bool _success);
 
 
@@ -418,21 +515,46 @@ contract DAOInterface {
     /// @param _proposalDeposit The new proposal deposit
     /// @dev Can only be called by this DAO (through proposals with the
     /// recipient being this DAO itself)
+    //
+    //
+    /// @notice 更改提交提案所需的最低存款
+    ///
+    /// @param _proposalDeposit 新提案存款
+    ///
+    /// @dev 只能由此DAO调用（通过提议，接收者是此DAO本身）
     function changeProposalDeposit(uint _proposalDeposit) external;
 
     /// @notice Move rewards from the DAORewards managed account
     /// @param _toMembers If true rewards are moved to the actual reward account
     ///                   for the DAO. If not then it's moved to the DAO itself
     /// @return Whether the call was successful
+    //
+    //
+    /// @notice 从DAORewards管理帐户中转移奖励
+    ///
+    /// @param _toMembers 如果将真实的奖励转移到DAO的实际奖励帐户中.
+    ///                   如果不是，则将其移至DAO本身.
+    ///
+    /// @return 调用是否成功
     function retrieveDAOReward(bool _toMembers) external returns (bool _success);
 
     /// @notice Get my portion of the reward that was sent to `rewardAccount`
     /// @return Whether the call was successful
+    ///
+    ///
+    /// @notice 获取我已发送给`rewardAccount`的部分奖励
+    ///
+    /// @return 调用是否成功
     function getMyReward() returns(bool _success);
 
     /// @notice Withdraw `_account`'s portion of the reward from `rewardAccount`
     /// to `_account`'s balance
     /// @return Whether the call was successful
+    ///
+    ///
+    /// @notice 将奖励的`_account`部分从`rewardAccount`中提取到`_account`的余额中
+    ///
+    /// @return 调用是否成功
     function withdrawRewardFor(address _account) internal returns (bool _success);
 
     /// @notice Send `_amount` tokens to `_to` from `msg.sender`. Prior to this
@@ -440,6 +562,14 @@ contract DAOInterface {
     /// @param _to The address of the recipient
     /// @param _amount The amount of tokens to be transfered
     /// @return Whether the transfer was successful or not
+    ///
+    ///
+    /// @notice 从`msg.sender`向`_to`发送`_amount` token。 在此之前，将调用getMyReward()
+    ///
+    /// @param _to 接收人的地址
+    /// @param _amount 要转移的 token数量
+    ///
+    /// @return 传输是否成功
     function transferWithoutReward(address _to, uint256 _amount) returns (bool success);
 
     /// @notice Send `_amount` tokens to `_to` from `_from` on the condition it
@@ -448,6 +578,15 @@ contract DAOInterface {
     /// @param _to The address of the recipient
     /// @param _amount The amount of tokens to be transfered
     /// @return Whether the transfer was successful or not
+    ///
+    ///
+    /// @notice 在_from批准的情况下，将_amount token 从_from发送到_to。 在此之前，将调用getMyReward()
+    ///
+    /// @param _from 发送人的地址
+    /// @param _to 接收人的地址
+    /// @param _amount 要转移的 token数量
+    ///
+    /// @return 传输是否成功
     function transferFromWithoutReward(
         address _from,
         address _to,
@@ -457,22 +596,40 @@ contract DAOInterface {
     /// @notice Doubles the 'minQuorumDivisor' in the case quorum has not been
     /// achieved in 52 weeks
     /// @return Whether the change was successful or not
+    ///
+    ///
+    /// @notice 如果在52周内未达到法定人数，则将'minQuorumDivisor'加倍
+    ///
+    /// @return 更改是否成功
     function halveMinQuorum() returns (bool _success);
 
     /// @return total number of proposals ever created
+    ///
+    /// @return 已创建的 提案总数
     function numberOfProposals() constant returns (uint _numberOfProposals);
 
     /// @param _proposalID Id of the new curator proposal
     /// @return Address of the new DAO
+    ///
+    ///
+    /// @param _proposalID ID 新 负责人提议的Id
+    ///
+    /// @return新DAO的地址
     function getNewDAOAddress(uint _proposalID) constant returns (address _newDAO);
 
     /// @param _account The address of the account which is checked.
     /// @return Whether the account is blocked (not allowed to transfer tokens) or not.
+    ///
+    /// @param _account 被检查的帐户的地址
+    /// @return 帐户是否被阻止 (不允许转移 token)
     function isBlocked(address _account) internal returns (bool);
 
     /// @notice If the caller is blocked by a proposal whose voting deadline
     /// has exprired then unblock him.
     /// @return Whether the account is blocked (not allowed to transfer tokens) or not.
+    ///
+    /// @notice 如果 调用者被投票截止时间已过的提案阻止，则取消阻止他。
+    /// @return 帐户是否被阻止 (不允许转移令牌)
     function unblockMe() returns (bool);
 
     event ProposalAdded(
@@ -500,9 +657,23 @@ contract DAO is DAOInterface, Token, TokenCreation {
     // Modifier that allows only shareholders to vote and create new proposals
     modifier onlyTokenholders {
         if (balanceOf(msg.sender) == 0) throw;
-            _
+            _;
     }
 
+
+    /*
+    @dev构造函数设置Curator和地址
+    能够创建另一个DAO的合同以及参数
+    用于DAO令牌创建
+    @param _curator 负责人
+    @param _daoCreator 能够（重新）创建此DAO的合约
+    @param _proposalDeposit 质押提案要支付的保证金
+    @param _minTokensToCreate 成功创建DAO令牌需要创建的最小必需等效令牌
+    @param _closingTime  DAO令牌创建结束的日期（Unix时间）
+    @param _privateCreation 如果为零，则DAO令牌创建对公众开放，非零地址表示DAO令牌创建仅用于该地址
+
+
+    */
     function DAO(
         address _curator,
         DAO_Creator _daoCreator,
@@ -512,8 +683,11 @@ contract DAO is DAOInterface, Token, TokenCreation {
         address _privateCreation
     ) TokenCreation(_minTokensToCreate, _closingTime, _privateCreation) {
 
+        // 设置 当前 Dao 的 负责人
         curator = _curator;
+        // 设置能够（重新）创建此DAO的合约 (Dao 的工厂合约实例)
         daoCreator = _daoCreator;
+        // 质押提案 要支付的保证金
         proposalDeposit = _proposalDeposit;
         rewardAccount = new ManagedAccount(address(this), false);
         DAOrewardAccount = new ManagedAccount(address(this), false);
