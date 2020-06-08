@@ -34,7 +34,7 @@ contract DAOInterface {
     // The amount of days for which people who try to participate in the
     // creation by calling the fallback function will still get their ether back
     //
-    // 尝试通过调用fallback函数返回他们的以太币 的天数 (锁定天数)
+    // 尝试通过调用fallback函数返回他们的 Ether 的天数 (锁定天数)
     uint constant creationGracePeriod = 40 days;
 
 
@@ -93,7 +93,7 @@ contract DAOInterface {
 
     // The unix time of the last time quorum was reached on a proposal
     //
-    // 提案已达到上次定额的Unix时间
+    // 提案已达到上次 法定的Unix时间
     uint  public lastTimeMinQuorumMet;
 
     // Address of the curator
@@ -689,21 +689,40 @@ contract DAO is DAOInterface, Token, TokenCreation {
         daoCreator = _daoCreator;
         // 质押提案 要支付的保证金
         proposalDeposit = _proposalDeposit;
+
+        // 设置 一个 Ether奖励 管理合约实例, 该合约的owner 是当前 Dao 合约, 且里面的奖励可以转给任何人
         rewardAccount = new ManagedAccount(address(this), false);
+        // 再设置一个 Dao Token 奖励 管理合约实例, 该合约的owner 是当前 Dao 合约, 且里面的奖励可以转给任何人
         DAOrewardAccount = new ManagedAccount(address(this), false);
+
+        //
         if (address(rewardAccount) == 0)
             throw;
         if (address(DAOrewardAccount) == 0)
             throw;
+
+        // 设置当前时间为 `提案已达到上次 法定的Unix时间`
         lastTimeMinQuorumMet = now;
+
+        // 将最小 法定 分母设置为20％
         minQuorumDivisor = 5; // sets the minimal quorum to 20%
+        // 避免使用ID为0的提案，因为该提案已被使用
         proposals.length = 1; // avoids a proposal with ID 0 because it is used
 
+
+        // 将当前 Dao 实例 加入白名单
+        // todo 白名单：允许DAO向其发送 Ether 的地址列表
         allowedRecipients[address(this)] = true;
+
+        // 将当前 Dao 的负责人地址 加入白名单
         allowedRecipients[curator] = true;
     }
 
+
+    // TODO fallback() 函数
     function () returns (bool success) {
+
+
         if (now < closingTime + creationGracePeriod && msg.sender != address(extraBalance))
             return createTokenProxy(msg.sender);
         else
@@ -711,11 +730,24 @@ contract DAO is DAOInterface, Token, TokenCreation {
     }
 
 
+    // @dev 此功能用于将以太币发送回DAO，也可以用于接收不应计为奖励的款项（捐赠，赠款等）
+    // @return DAO是否成功接收到以太币
     function receiveEther() returns (bool) {
         return true;
     }
 
 
+    // @notice  `msg.sender`创建一个 提案，将带有交易数据`_transactionData`的_amount` Wei发送到`_recipient`.
+    // 如果`_newCurator`为true，则这是一个拆分DAO并将“ _recipient`”设置为新DAO的Curator的提议.
+    //
+    // @param _recipient 提案交易的接收者的地址
+    // @param _amount 与 提案交易 一起发送的wei的金额
+    // @param _description 描述提案的字符串
+    // @param _transactionData 提案交易的数据
+    // @param _debatingPeriod 用于辩论提案的时间，对于常规提案，至少需要2周，对于新的负责人提案 (分裂出新的Dao)，至少需要10天
+    // @param _newCurator 布尔定义此提案是否与新馆长有关
+    //
+    // @return 提案Id. 需要对该提案进行投票
     function newProposal(
         address _recipient,
         uint _amount,
@@ -726,6 +758,7 @@ contract DAO is DAOInterface, Token, TokenCreation {
     ) onlyTokenholders returns (uint _proposalID) {
 
         // Sanity check
+        // 完整性检查
         if (_newCurator && (
             _amount != 0
             || _transactionData.length != 0
@@ -750,10 +783,12 @@ contract DAO is DAOInterface, Token, TokenCreation {
             throw;
         }
 
+        // 防止溢出
         if (now + _debatingPeriod < now) // prevents overflow
             throw;
 
         // to prevent a 51% attacker to convert the ether into deposit
+        // 防止51％的攻击者将 Ether 转换为存款
         if (msg.sender == address(this))
             throw;
 
@@ -766,6 +801,7 @@ contract DAO is DAOInterface, Token, TokenCreation {
         p.votingDeadline = now + _debatingPeriod;
         p.open = true;
         //p.proposalPassed = False; // that's default
+        // p.proposalPassed = False; //这是默认值
         p.newCurator = _newCurator;
         if (_newCurator)
             p.splitData.length++;
@@ -784,6 +820,14 @@ contract DAO is DAOInterface, Token, TokenCreation {
     }
 
 
+    // @notice 检查ID为 `_proposalID` 的提案是否与向 数据中 发送 `_transactionData` 的 `_amount` 到 `_recipient`的 tx匹配。
+    //
+    // @param _proposalID  提案ID
+    // @param _recipient 提案交易的 接收人
+    // @param _amount 提案交易中将发送的wei数量
+    // @param _transactionData 提案交易的数据
+    //
+    // @return 提案ID 是否与 交易数据匹配
     function checkProposalCode(
         uint _proposalID,
         address _recipient,
@@ -795,6 +839,12 @@ contract DAO is DAOInterface, Token, TokenCreation {
     }
 
 
+    // @notice 对带有`_supportsProposal`的 提案 `_proposalID`进行投票
+    //
+    // @param _proposalID  提案ID
+    // @param _supportsProposal  是/否 - 支持提案
+    //
+    // @return 投票ID
     function vote(
         uint _proposalID,
         bool _supportsProposal
@@ -828,6 +878,12 @@ contract DAO is DAOInterface, Token, TokenCreation {
     }
 
 
+    // @notice 检查具有交易数据`_transactionData`的提案 `_proposalID` 是否已被投票或拒绝，并在已被投票的情况下执行交易
+    //
+    // @param _proposalID 提案ID
+    // @param _transactionData 提案交易的数据
+    //
+    // @return 提议的交易是否已经执行
     function executeProposal(
         uint _proposalID,
         bytes _transactionData
